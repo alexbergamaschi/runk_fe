@@ -1,7 +1,10 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AnimatedSection } from "@/components/ui/animated-section";
+import { useStravaAuth } from "@/hooks/use-strava-auth";
 import {
   MapIcon,
   TrophyIcon,
@@ -12,8 +15,35 @@ import {
 } from "lucide-react";
 
 export default function Home() {
+  const { isAuthenticated, user, connecting, login } = useStravaAuth();
+
+  const handleStravaConnect = () => {
+    login();
+  };
+
+  // Componente di loading per l'autenticazione
+  const AuthLoadingOverlay = () => (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-md mx-4 apple-card apple-shadow dark:apple-shadow-dark">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
+            <div className="w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
+            Connessione a Strava
+          </h3>
+          <p className="text-slate-600 dark:text-slate-400">
+            Ti stiamo reindirizzando alla pagina di autorizzazione di Strava...
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen apple-gradient dark:apple-gradient-dark">
+      {/* Overlay di loading per autenticazione Strava */}
+      {connecting && <AuthLoadingOverlay />}
       {/* Hero Section */}
       <section className="px-6 pt-20 pb-32 max-w-7xl mx-auto text-center">
         <AnimatedSection>
@@ -44,19 +74,56 @@ export default function Home() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
-              <Button
-                size="lg"
-                className="px-8 py-6 text-lg font-semibold rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 apple-button apple-shadow dark:apple-shadow-dark"
-              >
-                Inizia la Conquista
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="px-8 py-6 text-lg font-semibold rounded-full border-2 hover:bg-slate-50 dark:hover:bg-slate-800 apple-button"
-              >
-                Connetti Strava
-              </Button>
+              {!isAuthenticated ? (
+                <>
+                  <Button
+                    size="lg"
+                    className="px-8 py-6 text-lg font-semibold rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 apple-button apple-shadow dark:apple-shadow-dark"
+                    onClick={handleStravaConnect}
+                    disabled={connecting}
+                  >
+                    {connecting ? "Connessione..." : "Inizia la Conquista"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="px-8 py-6 text-lg font-semibold rounded-full border-2 hover:bg-slate-50 dark:hover:bg-slate-800 apple-button"
+                    onClick={handleStravaConnect}
+                    disabled={connecting}
+                  >
+                    {connecting ? "Connessione..." : "Connetti Strava"}
+                  </Button>
+                </>
+              ) : (
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="flex items-center space-x-3 bg-green-50 dark:bg-green-900/20 px-6 py-3 rounded-full">
+                    <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                      <svg
+                        className="w-4 h-4 text-green-600 dark:text-green-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-green-700 dark:text-green-300 font-medium">
+                      Connesso come {user?.firstName || user?.name || "Runner"}
+                    </span>
+                  </div>
+                  <Button
+                    size="lg"
+                    className="px-8 py-6 text-lg font-semibold rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 apple-button apple-shadow dark:apple-shadow-dark"
+                  >
+                    Vai alla Dashboard
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </AnimatedSection>
@@ -204,12 +271,41 @@ export default function Home() {
               </p>
 
               <div className="flex justify-center pt-8">
-                <Button
-                  size="lg"
-                  className="px-8 py-6 text-lg font-semibold rounded-full bg-orange-600 hover:bg-orange-700 text-white apple-button apple-shadow dark:apple-shadow-dark"
-                >
-                  Connetti il tuo Account Strava
-                </Button>
+                {!isAuthenticated ? (
+                  <Button
+                    size="lg"
+                    className="px-8 py-6 text-lg font-semibold rounded-full bg-orange-600 hover:bg-orange-700 text-white apple-button apple-shadow dark:apple-shadow-dark"
+                    onClick={handleStravaConnect}
+                    disabled={connecting}
+                  >
+                    {connecting
+                      ? "Connessione..."
+                      : "Connetti il tuo Account Strava"}
+                  </Button>
+                ) : (
+                  <div className="text-center">
+                    <div className="inline-flex items-center space-x-3 bg-orange-50 dark:bg-orange-900/20 px-6 py-3 rounded-full mb-4">
+                      <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
+                        <svg
+                          className="w-4 h-4 text-orange-600 dark:text-orange-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                          />
+                        </svg>
+                      </div>
+                      <span className="text-orange-700 dark:text-orange-300 font-medium">
+                        Account Strava già collegato!
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -233,8 +329,14 @@ export default function Home() {
               <Button
                 size="lg"
                 className="px-12 py-6 text-xl font-bold rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 apple-button apple-shadow dark:apple-shadow-dark"
+                onClick={handleStravaConnect}
+                disabled={connecting}
               >
-                Scarica Runk
+                {isAuthenticated
+                  ? "Vai alla Dashboard"
+                  : connecting
+                  ? "Connessione..."
+                  : "Scarica Runk"}
               </Button>
             </div>
           </div>
