@@ -38,7 +38,8 @@ function StravaCallbackContent() {
         const endpoint = `/auth/strava/callback?${params.toString()}`;
         const response = await fetch(
           `${
-            process.env.NEXT_PUBLIC_BACKEND_SERVER || "http://localhost:8090"
+            process.env.NEXT_PUBLIC_BACKEND_SERVER ||
+            "https://runk.onrender.com"
           }${endpoint}`,
           {
             method: "GET",
