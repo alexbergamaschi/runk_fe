@@ -44,7 +44,7 @@ export class ApiClient {
 
   async post<T>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     withCredentials = true
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;

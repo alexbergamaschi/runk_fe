@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StravaUser, StravaCallbackResponse } from "@/types/strava";
 import { useAuth } from "@/hooks/use-auth";
 import { useSync } from "@/hooks/use-sync";
 
-export default function StravaCallbackPage() {
+function StravaCallbackContent() {
   const searchParams = useSearchParams();
   const { login } = useAuth();
   const sync = useSync();
@@ -66,7 +67,7 @@ export default function StravaCallbackPage() {
     };
 
     handleCallback();
-  }, [searchParams]);
+  }, [searchParams, login]);
 
   const handleSync = async () => {
     try {
@@ -160,9 +161,11 @@ export default function StravaCallbackPage() {
 
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 mb-6">
               <div className="flex items-center space-x-4">
-                <img
+                <Image
                   src={user.avatar}
                   alt={user.name}
+                  width={48}
+                  height={48}
                   className="w-12 h-12 rounded-full"
                 />
                 <div className="text-left">
@@ -229,4 +232,36 @@ export default function StravaCallbackPage() {
   }
 
   return null;
+}
+
+// Loading component per Suspense
+function CallbackLoading() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardContent className="pt-6">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
+              <div className="w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
+              Caricamento...
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400">
+              Stiamo elaborando la tua autenticazione Strava
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Componente principale con Suspense boundary
+export default function StravaCallbackPage() {
+  return (
+    <Suspense fallback={<CallbackLoading />}>
+      <StravaCallbackContent />
+    </Suspense>
+  );
 }
