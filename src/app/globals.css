@@ -245,8 +245,3 @@ html {
 .dark .leaflet-popup-tip {
   background: #1e293b;
 }
-
-.custom-div-icon {
-  background: transparent;
-  border: none;
-}

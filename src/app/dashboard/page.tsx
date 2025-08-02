@@ -431,9 +431,8 @@ export default function Dashboard() {
                       <div className="space-y-1 text-sm text-slate-600 dark:text-slate-400">
                         <p>Area: {territory.area.toLocaleString()} m²</p>
                         <div className="flex items-center space-x-1 text-xs text-slate-500">
-                          <CircleIcon className="w-3 h-3" />
                           <span>
-                            ≈ {Math.round(territory.area / 7140)} campi da
+                            ⚽️ ≈ {Math.round(territory.area / 7140)} campi da
                             calcio
                           </span>
                         </div>
