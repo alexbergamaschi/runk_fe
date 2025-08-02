@@ -19,8 +19,8 @@ export const stravaApi = {
   // Verifica stato autenticazione
   checkAuthStatus: async (): Promise<boolean> => {
     try {
-      // Prima prova senza credentials per evitare CORS
-      await apiClient.get<{ status: string }>(`/health`, false);
+      // Usa /user per verificare l'autenticazione con cookies
+      await apiClient.get<UserInfo>(`/user`, true);
       return true;
     } catch {
       return false;

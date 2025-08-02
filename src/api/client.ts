@@ -12,7 +12,7 @@ export class ApiClient {
     });
   }
 
-  async get<T>(endpoint: string, withCredentials = false): Promise<T> {
+  async get<T>(endpoint: string, withCredentials = true): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     console.log(
       "📡 GET Request:",
@@ -44,7 +44,7 @@ export class ApiClient {
 
   async post<T>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     withCredentials = true
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;

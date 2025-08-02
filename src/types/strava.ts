@@ -21,7 +21,7 @@ export interface StravaAuthState {
 
 export interface SyncResponse {
   message: string;
-  syncedData?: any;
-  territories?: any[];
-  activities?: any[];
+  syncedData?: unknown;
+  territories?: unknown[];
+  activities?: unknown[];
 }

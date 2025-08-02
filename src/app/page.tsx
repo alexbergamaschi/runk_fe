@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,12 @@ import {
 
 export default function Home() {
   const { isAuthenticated, user, connecting, login } = useStravaAuth();
+  console.log("isAuthenticated", isAuthenticated, "user", user);
+
+  // Debug cookies
+  useEffect(() => {
+    console.log("🍪 Cookies disponibili:", document.cookie);
+  }, []);
 
   const handleStravaConnect = () => {
     login();
@@ -76,14 +83,6 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
               {!isAuthenticated ? (
                 <>
-                  <Button
-                    size="lg"
-                    className="px-8 py-6 text-lg font-semibold rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 apple-button apple-shadow dark:apple-shadow-dark"
-                    onClick={handleStravaConnect}
-                    disabled={connecting}
-                  >
-                    {connecting ? "Connessione..." : "Inizia la Conquista"}
-                  </Button>
                   <Button
                     variant="outline"
                     size="lg"

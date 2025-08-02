@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StravaUser, StravaCallbackResponse } from "@/types/strava";
 import { useAuth } from "@/hooks/use-auth";
 import { useSync } from "@/hooks/use-sync";
 
-export default function StravaCallbackPage() {
+function StravaCallbackContent() {
   const searchParams = useSearchParams();
   const { login } = useAuth();
   const sync = useSync();
@@ -16,17 +17,26 @@ export default function StravaCallbackPage() {
   const [user, setUser] = useState<StravaUser | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [synced, setSynced] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     const handleCallback = async () => {
+      // Prevenire chiamate multiple
+      if (isProcessing || user || error) {
+        return;
+      }
+
+      const code = searchParams.get("code");
+      if (!code) {
+        setLoading(false);
+        return; // Non c'è codice, non fare nulla
+      }
+
+      setIsProcessing(true);
+
       try {
-        const code = searchParams.get("code");
         const state = searchParams.get("state");
         const scope = searchParams.get("scope");
-
-        if (!code) {
-          throw new Error("Codice di autorizzazione mancante");
-        }
 
         // Usa il nostro API client per la consistenza
         const params = new URLSearchParams();
@@ -44,16 +54,40 @@ export default function StravaCallbackPage() {
             headers: {
               accept: "application/json",
             },
-            // NO credentials nel callback iniziale - il backend imposterà i cookie nella risposta
+            // IMPORTANTE: includi credentials per salvare i cookies di sessione
+            credentials: "include",
             mode: "cors",
           }
         );
 
-        if (!response.ok) {
-          throw new Error(`Errore HTTP: ${response.status}`);
+        console.log("🔍 Response status:", response.status);
+        console.log(
+          "🔍 Response headers:",
+          Object.fromEntries(response.headers.entries())
+        );
+
+        const responseText = await response.text();
+        console.log("🔍 Response body:", responseText);
+
+        // Prova a parsare la risposta
+        let data: StravaCallbackResponse;
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw new Error(`Errore nel parsing della risposta: ${responseText}`);
         }
 
-        const data: StravaCallbackResponse = await response.json();
+        // Se abbiamo dati validi, usali anche se c'è stato un errore 500
+        if (data.user && data.message) {
+          console.log(
+            "✅ Dati validi ricevuti, procedo anche con status:",
+            response.status
+          );
+        } else if (!response.ok) {
+          console.error("❌ Backend error response:", responseText);
+          throw new Error(`Errore HTTP: ${response.status} - ${responseText}`);
+        }
+        console.log("✅ Callback riuscito:", data);
         setUser(data.user);
         // Salva l'utente nell'auth state
         login(data.user);
@@ -62,11 +96,12 @@ export default function StravaCallbackPage() {
         setError(err instanceof Error ? err.message : "Errore sconosciuto");
       } finally {
         setLoading(false);
+        setIsProcessing(false);
       }
     };
 
     handleCallback();
-  }, [searchParams]);
+  }, [searchParams, login, isProcessing, user, error]);
 
   const handleSync = async () => {
     try {
@@ -160,9 +195,11 @@ export default function StravaCallbackPage() {
 
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 mb-6">
               <div className="flex items-center space-x-4">
-                <img
+                <Image
                   src={user.avatar}
                   alt={user.name}
+                  width={48}
+                  height={48}
                   className="w-12 h-12 rounded-full"
                 />
                 <div className="text-left">
@@ -229,4 +266,28 @@ export default function StravaCallbackPage() {
   }
 
   return null;
+}
+
+export default function StravaCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+          <Card className="w-full max-w-md mx-4">
+            <CardContent className="p-8 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                Caricamento...
+              </h2>
+              <p className="text-slate-600 dark:text-slate-400">
+                Stiamo preparando la pagina
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <StravaCallbackContent />
+    </Suspense>
+  );
 }
