@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+"use client";
+
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { stravaApi } from "@/api/strava";
 
@@ -13,7 +15,18 @@ export interface UserInfo {
   defenses?: number;
 }
 
-export function useStravaAuth() {
+interface AuthContextType {
+  isAuthenticated: boolean;
+  user: UserInfo | null;
+  loading: boolean;
+  connecting: boolean;
+  login: () => void;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
 
@@ -25,7 +38,7 @@ export function useStravaAuth() {
       return acc;
     }, {} as Record<string, string>);
     
-    console.log("🍪 Cookies letti:", cookies);
+    console.log("🍪 AuthProvider - Cookies letti:", cookies);
     return cookies.authenticated === 'true' && cookies.userId;
   };
 
@@ -34,23 +47,24 @@ export function useStravaAuth() {
     queryKey: ["auth-status"],
     queryFn: stravaApi.checkAuthStatus,
     retry: false,
-    staleTime: 0, // Sempre fresh
+    staleTime: 0,
+    refetchOnWindowFocus: false,
   });
 
   // Query per ottenere info utente (solo se autenticato)
-  const { data: userInfo, refetch: refetchUser } = useQuery({
+  const { data: userInfo } = useQuery({
     queryKey: ["user-info"],
     queryFn: stravaApi.getUserInfo,
     enabled: authStatus === true,
     retry: false,
-    staleTime: 0, // Sempre fresh
+    staleTime: 0,
+    refetchOnWindowFocus: false,
   });
 
   // Mutation per ottenere l'URL di autenticazione
   const stravaAuthMutation = useMutation({
     mutationFn: stravaApi.getAuthUrl,
     onSuccess: (data) => {
-      // Redirect automatico dopo aver ottenuto l'URL
       window.location.href = data.url;
     },
     onError: (error) => {
@@ -58,43 +72,49 @@ export function useStravaAuth() {
     },
   });
 
-  // Effetto per verificare l'autenticazione all'avvio e quando cambiano i cookie
+  // Effetto per gestire l'autenticazione
   useEffect(() => {
     const hasCookies = checkCookies();
-    console.log("🔍 Verifica autenticazione:", { hasCookies, authStatus, userInfo });
+    console.log("🔍 AuthProvider - Verifica autenticazione:", { 
+      hasCookies, 
+      authStatus, 
+      userInfo,
+      currentAuth: isAuthenticated 
+    });
     
     if (hasCookies && authStatus === true) {
+      console.log("✅ AuthProvider - Imposto autenticato");
       setIsAuthenticated(true);
       setUser(userInfo || null);
-    } else if (hasCookies && authStatus === undefined) {
+    } else if (hasCookies && authStatus === undefined && !isAuthenticated) {
       // Se abbiamo i cookie ma non abbiamo ancora verificato l'auth, prova a refetch
-      console.log("🔄 Refetch auth status...");
+      console.log("🔄 AuthProvider - Refetch auth status...");
       refetchAuth();
-    } else {
+    } else if (!hasCookies) {
+      console.log("❌ AuthProvider - Nessun cookie, non autenticato");
       setIsAuthenticated(false);
       setUser(null);
     }
-  }, [authStatus, userInfo, refetchAuth]);
+  }, [authStatus, userInfo, refetchAuth, isAuthenticated]);
 
   const login = () => {
-    // Usa la mutation per ottenere l'URL e poi fare il redirect
+    console.log("🚀 AuthProvider - Avvio login");
     stravaAuthMutation.mutate();
   };
 
   const logout = () => {
+    console.log("🚪 AuthProvider - Logout");
     // Rimuovi i cookie di autenticazione
-    document.cookie =
-      "authenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "authenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     document.cookie = "userId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    document.cookie =
-      "sessionId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-
+    document.cookie = "sessionId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    
     // Reset dello stato locale
     setIsAuthenticated(false);
     setUser(null);
   };
 
-  return {
+  const value = {
     isAuthenticated,
     user,
     loading: isLoading,
@@ -102,4 +122,18 @@ export function useStravaAuth() {
     login,
     logout,
   };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth deve essere usato all'interno di AuthProvider");
+  }
+  return context;
+} 

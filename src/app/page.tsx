@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AnimatedSection } from "@/components/ui/animated-section";
-import { useStravaAuth } from "@/hooks/use-strava-auth";
+import { useAuth } from "@/providers/auth-provider";
 import {
   MapIcon,
   TrophyIcon,
@@ -16,7 +17,8 @@ import {
 } from "lucide-react";
 
 export default function Home() {
-  const { isAuthenticated, user, connecting, login } = useStravaAuth();
+  const router = useRouter();
+  const { isAuthenticated, user, connecting, login } = useAuth();
   console.log("isAuthenticated", isAuthenticated, "user", user);
 
   // Debug cookies
@@ -26,6 +28,10 @@ export default function Home() {
 
   const handleStravaConnect = () => {
     login();
+  };
+
+  const handleGoToDashboard = () => {
+    router.push("/dashboard");
   };
 
   // Componente di loading per l'autenticazione
@@ -118,6 +124,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     className="px-8 py-6 text-lg font-semibold rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 apple-button apple-shadow dark:apple-shadow-dark"
+                    onClick={handleGoToDashboard}
                   >
                     Vai alla Dashboard
                   </Button>
@@ -328,7 +335,9 @@ export default function Home() {
               <Button
                 size="lg"
                 className="px-12 py-6 text-xl font-bold rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 apple-button apple-shadow dark:apple-shadow-dark"
-                onClick={handleStravaConnect}
+                onClick={
+                  isAuthenticated ? handleGoToDashboard : handleStravaConnect
+                }
                 disabled={connecting}
               >
                 {isAuthenticated
