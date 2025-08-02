@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StravaUser, StravaCallbackResponse } from "@/types/strava";
 import { useAuth } from "@/hooks/use-auth";
 import { useSync } from "@/hooks/use-sync";
+import { config } from "@/lib/config";
 
 function StravaCallbackContent() {
   const searchParams = useSearchParams();
@@ -45,20 +46,17 @@ function StravaCallbackContent() {
         if (scope) params.set("scope", scope);
 
         const endpoint = `/auth/strava/callback?${params.toString()}`;
-        const response = await fetch(
-          `${
-            process.env.NEXT_PUBLIC_BACKEND_SERVER || "http://localhost:8090"
-          }${endpoint}`,
-          {
-            method: "GET",
-            headers: {
-              accept: "application/json",
-            },
-            // IMPORTANTE: includi credentials per salvare i cookies di sessione
-            credentials: "include",
-            mode: "cors",
-          }
-        );
+        console.log("🔧 Callback URL:", `${config.backendUrl}${endpoint}`);
+
+        const response = await fetch(`${config.backendUrl}${endpoint}`, {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+          },
+          // IMPORTANTE: includi credentials per salvare i cookies di sessione
+          credentials: "include",
+          mode: "cors",
+        });
 
         console.log("🔍 Response status:", response.status);
         console.log(
@@ -93,7 +91,17 @@ function StravaCallbackContent() {
         login(data.user);
       } catch (err) {
         console.error("Errore nel callback Strava:", err);
-        setError(err instanceof Error ? err.message : "Errore sconosciuto");
+
+        // Gestione specifica degli errori di connessione
+        if (err instanceof TypeError && err.message.includes("fetch")) {
+          setError(
+            `Errore di connessione al backend. Verifica che il server sia attivo su ${config.backendUrl}`
+          );
+        } else if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("Errore sconosciuto durante l'autenticazione");
+        }
       } finally {
         setLoading(false);
         setIsProcessing(false);
@@ -154,6 +162,25 @@ function StravaCallbackContent() {
               Errore di Connessione
             </h2>
             <p className="text-red-700 dark:text-red-300 mb-6">{error}</p>
+
+            {/* Informazioni di debug per la produzione */}
+            {config.isProduction && (
+              <div className="text-xs text-gray-500 mb-4 p-2 bg-gray-100 rounded">
+                <p>
+                  <strong>Ambiente:</strong> Produzione
+                </p>
+                <p>
+                  <strong>Frontend:</strong> {config.frontendUrl}
+                </p>
+                <p>
+                  <strong>Backend:</strong> {config.backendUrl}
+                </p>
+                <p>
+                  <strong>Callback:</strong> {config.stravaCallbackUrl}
+                </p>
+              </div>
+            )}
+
             <Button
               onClick={() => (window.location.href = "/")}
               className="bg-red-600 hover:bg-red-700 text-white"

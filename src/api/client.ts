@@ -1,14 +1,15 @@
-const BACKEND_SERVER =
-  process.env.NEXT_PUBLIC_BACKEND_SERVER || "http://localhost:8090";
+import { config } from "@/lib/config";
 
 export class ApiClient {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = BACKEND_SERVER;
+    this.baseUrl = config.backendUrl;
     console.log("🔧 ApiClient inizializzato:", {
       baseUrl: this.baseUrl,
-      env: process.env.NEXT_PUBLIC_BACKEND_SERVER,
+      frontendUrl: config.frontendUrl,
+      isProduction: config.isProduction,
+      isVercel: config.isVercel,
     });
   }
 
