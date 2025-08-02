@@ -9,8 +9,9 @@ export interface StravaAuthResponse {
 }
 
 export interface StravaCallbackResponse {
-  message: string;
-  user: StravaUser;
+  message?: string;
+  user?: StravaUser;
+  error?: string;
 }
 
 export interface StravaAuthState {

@@ -1,5 +1,5 @@
 const BACKEND_SERVER =
-  process.env.NEXT_PUBLIC_BACKEND_SERVER || "http://localhost:8090";
+  process.env.NEXT_PUBLIC_BACKEND_SERVER || "https://runk.onrender.com";
 
 export class ApiClient {
   private baseUrl: string;
@@ -33,13 +33,33 @@ export class ApiClient {
       options.credentials = "include";
     }
 
-    const response = await fetch(url, options);
+    try {
+      const response = await fetch(url, options);
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        // Solo logga errori non-401 (401 è normale per utenti non autenticati)
+        if (response.status !== 401) {
+          console.error(
+            "📡 HTTP Error:",
+            response.status,
+            response.statusText,
+            "for",
+            url
+          );
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("✅ API Success:", endpoint);
+      return data;
+    } catch (error: unknown) {
+      // Solo logga errori veri, non 401
+      if (!(error as Error)?.message?.includes("401")) {
+        console.error("📡 Network error:", error, "for", url);
+      }
+      throw error;
     }
-
-    return response.json();
   }
 
   async post<T>(

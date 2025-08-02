@@ -5,6 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AnimatedSection } from "@/components/ui/animated-section";
 import { useStravaAuth } from "@/hooks/use-strava-auth";
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { stravaApi } from "@/api/strava";
+import Image from "next/image";
 import {
   MapIcon,
   TrophyIcon,
@@ -12,38 +16,255 @@ import {
   TargetIcon,
   ChartBarIcon,
   ShieldCheckIcon,
+  X,
 } from "lucide-react";
 
 export default function Home() {
-  const { isAuthenticated, user, connecting, login } = useStravaAuth();
+  const { isAuthenticated, user, loading } = useStravaAuth();
+  const [showSyncPopup, setShowSyncPopup] = useState(false);
+  const [syncStep, setSyncStep] = useState<'auth' | 'sync' | 'complete' | 'error'>('auth');
+  const [syncData, setSyncData] = useState<{ user?: { id: number; name?: string; firstName?: string; avatar?: string; }; syncedData?: { territories?: number; activities?: number; newConquests?: number; }; message?: string } | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Mutation per ottenere l'URL di autenticazione
+  const authMutation = useMutation({
+    mutationFn: stravaApi.getAuthUrl,
+    onSuccess: (data) => {
+      if (data?.url) {
+        // Apri Strava auth in popup
+        const popup = window.open(
+          data.url,
+          'strava-auth',
+          'width=600,height=700,scrollbars=yes,resizable=yes,status=yes,location=yes,toolbar=no,menubar=no'
+        );
+
+        // Ascolta per messaggi dal popup
+        const handleMessage = (event: MessageEvent) => {
+          if (event.origin !== window.location.origin) return;
+
+          if (event.data.type === 'STRAVA_AUTH_SUCCESS') {
+            popup?.close();
+            window.removeEventListener('message', handleMessage);
+            setSyncData(event.data.user);
+            setSyncStep('sync');
+            // Avvia automaticamente la sincronizzazione
+            syncMutation.mutate();
+          } else if (event.data.type === 'STRAVA_AUTH_ERROR') {
+            popup?.close();
+            window.removeEventListener('message', handleMessage);
+            setErrorMessage(event.data.error || 'Errore durante l\'autenticazione');
+            setSyncStep('error');
+          }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        // Timeout per chiudere il popup
+        setTimeout(() => {
+          if (popup && !popup.closed) {
+            popup.close();
+            window.removeEventListener('message', handleMessage);
+            setErrorMessage('Timeout durante l\'autenticazione');
+            setSyncStep('error');
+          }
+        }, 120000);
+      }
+    },
+    onError: () => {
+      setErrorMessage('Errore durante la connessione a Strava');
+      setSyncStep('error');
+    }
+  });
+
+  // Mutation per sincronizzazione
+  const syncMutation = useMutation({
+    mutationFn: stravaApi.syncTerritories,
+    onSuccess: (data) => {
+      setSyncData(data);
+      setSyncStep('complete');
+      // Ricarica i dati utente dopo 2 secondi
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    },
+    onError: () => {
+      setErrorMessage('Errore durante la sincronizzazione');
+      setSyncStep('error');
+    }
+  });
 
   const handleStravaConnect = () => {
-    login();
+    setShowSyncPopup(true);
+    setSyncStep('auth');
+    setErrorMessage('');
+    setSyncData(null);
+    authMutation.mutate();
   };
 
-  // Componente di loading per l'autenticazione
-  const AuthLoadingOverlay = () => (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-md mx-4 apple-card apple-shadow dark:apple-shadow-dark">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
-            <div className="w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-          <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
-            Connessione a Strava
-          </h3>
-          <p className="text-slate-600 dark:text-slate-400">
-            Ti stiamo reindirizzando alla pagina di autorizzazione di Strava...
-          </p>
+  const closeSyncPopup = () => {
+    setShowSyncPopup(false);
+    setSyncStep('auth');
+    setErrorMessage('');
+    setSyncData(null);
+  };
+
+  // Popup di sincronizzazione Strava
+  const SyncPopup = () => {
+    if (!showSyncPopup) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-md w-full mx-4 apple-card apple-shadow dark:apple-shadow-dark relative">
+          <button
+            onClick={closeSyncPopup}
+            className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-5 h-5 text-slate-500" />
+          </button>
+
+          {syncStep === 'auth' && (
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                Connessione a Strava
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400">
+                Ti stiamo reindirizzando alla pagina di autorizzazione di Strava...
+              </p>
+            </div>
+          )}
+
+          {syncStep === 'sync' && (
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                Sincronizzazione Dati
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-4">
+                Stiamo importando le tue attività e territori...
+              </p>
+              {syncData?.user && (
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
+                  <div className="flex items-center space-x-3">
+                    {syncData.user.avatar && (
+                      <Image
+                        src={syncData.user.avatar}
+                        alt={syncData.user.name || 'User'}
+                        width={40}
+                        height={40}
+                        className="w-10 h-10 rounded-full"
+                      />
+                    )}
+                    <div className="text-left">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">
+                        {syncData.user.name || syncData.user.firstName || 'Runner'}
+                      </div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">
+                        Connesso con successo
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {syncStep === 'complete' && (
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                Sincronizzazione Completata!
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-4">
+                Il tuo account Strava è stato collegato e i dati sono stati sincronizzati con successo.
+              </p>
+              {syncData?.syncedData && (
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 mb-4">
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <div className="text-lg font-bold text-green-700 dark:text-green-300">
+                        {syncData.syncedData.territories || 0}
+                      </div>
+                      <div className="text-xs text-green-600 dark:text-green-400">
+                        Territori
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-green-700 dark:text-green-300">
+                        {syncData.syncedData.activities || 0}
+                      </div>
+                      <div className="text-xs text-green-600 dark:text-green-400">
+                        Attività
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-green-700 dark:text-green-300">
+                        {syncData.syncedData.newConquests || 0}
+                      </div>
+                      <div className="text-xs text-green-600 dark:text-green-400">
+                        Nuove Conquiste
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                La pagina si ricaricherà automaticamente...
+              </p>
+            </div>
+          )}
+
+          {syncStep === 'error' && (
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
+                <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                Errore di Connessione
+              </h3>
+              <p className="text-red-600 dark:text-red-400 mb-4">
+                {errorMessage}
+              </p>
+              <div className="space-y-3">
+                <Button
+                  onClick={() => {
+                    setSyncStep('auth');
+                    setErrorMessage('');
+                    authMutation.mutate();
+                  }}
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  Riprova Connessione
+                </Button>
+                <Button
+                  onClick={closeSyncPopup}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Annulla
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen apple-gradient dark:apple-gradient-dark">
-      {/* Overlay di loading per autenticazione Strava */}
-      {connecting && <AuthLoadingOverlay />}
+      {/* Popup di sincronizzazione Strava */}
+      <SyncPopup />
       {/* Hero Section */}
       <section className="px-6 pt-20 pb-32 max-w-7xl mx-auto text-center">
         <AnimatedSection>
@@ -76,22 +297,22 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
               {!isAuthenticated ? (
                 <>
-                  <Button
+                  {/* <Button
                     size="lg"
                     className="px-8 py-6 text-lg font-semibold rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 apple-button apple-shadow dark:apple-shadow-dark"
                     onClick={handleStravaConnect}
                     disabled={connecting}
                   >
                     {connecting ? "Connessione..." : "Inizia la Conquista"}
-                  </Button>
+                  </Button> */}
                   <Button
                     variant="outline"
                     size="lg"
                     className="px-8 py-6 text-lg font-semibold rounded-full border-2 hover:bg-slate-50 dark:hover:bg-slate-800 apple-button"
                     onClick={handleStravaConnect}
-                    disabled={connecting}
+                    disabled={authMutation.isPending || loading}
                   >
-                    {connecting ? "Connessione..." : "Connetti Strava"}
+                    {authMutation.isPending ? "Connessione..." : "Connetti Strava"}
                   </Button>
                 </>
               ) : (
@@ -276,9 +497,9 @@ export default function Home() {
                     size="lg"
                     className="px-8 py-6 text-lg font-semibold rounded-full bg-orange-600 hover:bg-orange-700 text-white apple-button apple-shadow dark:apple-shadow-dark"
                     onClick={handleStravaConnect}
-                    disabled={connecting}
+                    disabled={authMutation.isPending || loading}
                   >
-                    {connecting
+                    {authMutation.isPending
                       ? "Connessione..."
                       : "Connetti il tuo Account Strava"}
                   </Button>
@@ -330,11 +551,11 @@ export default function Home() {
                 size="lg"
                 className="px-12 py-6 text-xl font-bold rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 apple-button apple-shadow dark:apple-shadow-dark"
                 onClick={handleStravaConnect}
-                disabled={connecting}
+                disabled={authMutation.isPending || loading}
               >
                 {isAuthenticated
                   ? "Vai alla Dashboard"
-                  : connecting
+                  : authMutation.isPending
                   ? "Connessione..."
                   : "Scarica Runk"}
               </Button>

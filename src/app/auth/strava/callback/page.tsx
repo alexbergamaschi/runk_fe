@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StravaUser, StravaCallbackResponse } from "@/types/strava";
 import { useAuth } from "@/hooks/use-auth";
 import { useSync } from "@/hooks/use-sync";
+import { apiClient } from "@/api/client";
 
 function StravaCallbackContent() {
   const searchParams = useSearchParams();
@@ -30,38 +31,80 @@ function StravaCallbackContent() {
         }
 
         // Usa il nostro API client per la consistenza
+        console.log("📥 Inizio gestione callback Strava");
+        console.log("📥 Code:", code);
+        console.log("📥 State:", state);
+        console.log("📥 Scope:", scope);
+
         const params = new URLSearchParams();
         params.set("code", code);
         if (state) params.set("state", state);
         if (scope) params.set("scope", scope);
 
         const endpoint = `/auth/strava/callback?${params.toString()}`;
-        const response = await fetch(
-          `${
-            process.env.NEXT_PUBLIC_BACKEND_SERVER ||
-            "https://runk.onrender.com"
-          }${endpoint}`,
-          {
-            method: "GET",
-            headers: {
-              accept: "application/json",
-            },
-            // NO credentials nel callback iniziale - il backend imposterà i cookie nella risposta
-            mode: "cors",
-          }
-        );
+        console.log("📥 Chiamata endpoint:", endpoint);
 
-        if (!response.ok) {
-          throw new Error(`Errore HTTP: ${response.status}`);
+        // Usa l'API client con credentials per il callback
+        const data: StravaCallbackResponse = await apiClient.get(
+          endpoint,
+          true
+        );
+        console.log("✅ Risposta callback:", data);
+
+        // Controlla se c'è un errore nella risposta
+        if (data.error) {
+          throw new Error(data.error);
         }
 
-        const data: StravaCallbackResponse = await response.json();
+        if (!data.user) {
+          throw new Error("Dati utente mancanti nella risposta");
+        }
+
+        console.log("🔄 Comunicazione successo al parent window");
+
+        // Se siamo in un popup, comunica al parent
+        if (window.opener && window.opener !== window) {
+          window.opener.postMessage(
+            {
+              type: "STRAVA_AUTH_SUCCESS",
+              user: data.user,
+            },
+            window.location.origin
+          );
+          // Chiudi dopo un breve delay per assicurarsi che il messaggio sia inviato
+          setTimeout(() => {
+            window.close();
+          }, 100);
+          return;
+        }
+
+        // Altrimenti usa il flusso normale
         setUser(data.user);
-        // Salva l'utente nell'auth state
         login(data.user);
       } catch (err) {
-        console.error("Errore nel callback Strava:", err);
-        setError(err instanceof Error ? err.message : "Errore sconosciuto");
+        console.error("❌ Errore nel callback Strava:", err);
+        const errorMessage =
+          err instanceof Error ? err.message : "Errore sconosciuto";
+        console.error("❌ Messaggio errore:", errorMessage);
+
+        // Se siamo in un popup, comunica l'errore al parent
+        if (window.opener && window.opener !== window) {
+          window.opener.postMessage(
+            {
+              type: "STRAVA_AUTH_ERROR",
+              error: errorMessage,
+            },
+            window.location.origin
+          );
+          // Chiudi dopo un breve delay per assicurarsi che il messaggio sia inviato
+          setTimeout(() => {
+            window.close();
+          }, 100);
+          return;
+        }
+
+        // Altrimenti mostra l'errore nella pagina
+        setError(`Errore durante l'autenticazione: ${errorMessage}`);
       } finally {
         setLoading(false);
       }
@@ -80,16 +123,23 @@ function StravaCallbackContent() {
   };
 
   if (loading) {
+    // Se siamo in un popup, mostra un messaggio più appropriato
+    const isPopup = window.opener && window.opener !== window;
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
         <Card className="w-full max-w-md mx-4">
           <CardContent className="p-8 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
-              Connessione in corso...
+              {isPopup
+                ? "Completamento autorizzazione..."
+                : "Connessione in corso..."}
             </h2>
             <p className="text-slate-600 dark:text-slate-400">
-              Stiamo completando la connessione con Strava
+              {isPopup
+                ? "Stiamo finalizzando l'autorizzazione Strava. Questa finestra si chiuderà automaticamente."
+                : "Stiamo completando la connessione con Strava"}
             </p>
           </CardContent>
         </Card>
@@ -121,12 +171,21 @@ function StravaCallbackContent() {
               Errore di Connessione
             </h2>
             <p className="text-red-700 dark:text-red-300 mb-6">{error}</p>
-            <Button
-              onClick={() => (window.location.href = "/")}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              Torna alla Home
-            </Button>
+            <div className="space-y-3">
+              <Button
+                onClick={() => window.location.reload()}
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                Riprova Connessione
+              </Button>
+              <Button
+                onClick={() => (window.location.href = "/")}
+                variant="outline"
+                className="w-full border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20"
+              >
+                Torna alla Home
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
