@@ -46,20 +46,6 @@ export function useStravaAuth() {
 */
 
 // ========================================
-// OPZIONE 3: ID temporaneo per sviluppo
-// Solo per testing - NON usare in produzione
-// ========================================
-export const stravaApiOption3 = {
-  getAuthUrl: async (): Promise<StravaAuthResponse> => {
-    const TEMP_USER_ID = "127053695"; // ID temporaneo per sviluppo
-    console.warn("⚠️ Usando ID utente temporaneo per sviluppo:", TEMP_USER_ID);
-    return apiClient.get<StravaAuthResponse>(
-      `/api/territories/user/${TEMP_USER_ID}`
-    );
-  },
-};
-
-// ========================================
 // OPZIONE 4: Gestione con localStorage
 // Per salvare l'ID utente localmente
 // ========================================

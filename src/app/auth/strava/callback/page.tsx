@@ -5,8 +5,9 @@ import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { StravaUser, StravaCallbackResponse } from "@/types/strava";
-import { useAuth } from "@/hooks/use-auth";
+import { StravaCallbackResponse } from "@/types/strava";
+import { UserInfo } from "@/providers/auth-provider";
+import { useAuth } from "@/providers/auth-provider";
 import { useSync } from "@/hooks/use-sync";
 import { config } from "@/lib/config";
 
@@ -15,7 +16,7 @@ function StravaCallbackContent() {
   const { login } = useAuth();
   const sync = useSync();
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<StravaUser | null>(null);
+  const [user, setUser] = useState<UserInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [synced, setSynced] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -87,8 +88,13 @@ function StravaCallbackContent() {
         }
         console.log("✅ Callback riuscito:", data);
         setUser(data.user);
-        // Salva l'utente nell'auth state
-        login(data.user);
+        // L'auth provider gestirà automaticamente l'autenticazione tramite i cookie
+        // Non serve chiamare login() qui perché l'auth provider rileverà i cookie
+
+        // Reindirizza automaticamente alla dashboard dopo 2 secondi
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 2000);
       } catch (err) {
         console.error("Errore nel callback Strava:", err);
 
@@ -219,16 +225,21 @@ function StravaCallbackContent() {
             <p className="text-green-700 dark:text-green-300 mb-6">
               Il tuo account Strava è stato collegato con successo
             </p>
+            <p className="text-blue-600 dark:text-blue-400 text-sm mb-4">
+              Reindirizzamento alla dashboard in corso...
+            </p>
 
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 mb-6">
               <div className="flex items-center space-x-4">
-                <Image
-                  src={user.avatar}
-                  alt={user.name}
-                  width={48}
-                  height={48}
-                  className="w-12 h-12 rounded-full"
-                />
+                {user.avatar && (
+                  <Image
+                    src={user.avatar}
+                    alt={user.name || "User"}
+                    width={48}
+                    height={48}
+                    className="w-12 h-12 rounded-full"
+                  />
+                )}
                 <div className="text-left">
                   <div className="font-semibold text-slate-900 dark:text-slate-100">
                     {user.name}
@@ -278,6 +289,12 @@ function StravaCallbackContent() {
                   </p>
                 </div>
               )}
+              <Button
+                onClick={() => (window.location.href = "/dashboard")}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Vai alla Dashboard
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => (window.location.href = "/")}

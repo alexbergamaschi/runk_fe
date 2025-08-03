@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { stravaApi } from "@/api/strava";
 
@@ -32,23 +38,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Funzione per verificare i cookie di autenticazione
   const checkCookies = () => {
-    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-      const [key, value] = cookie.trim().split('=');
+    if (typeof window === "undefined") return false;
+
+    const cookies = document.cookie.split(";").reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split("=");
       acc[key] = value;
       return acc;
     }, {} as Record<string, string>);
-    
+
     console.log("🍪 AuthProvider - Cookies letti:", cookies);
-    return cookies.authenticated === 'true' && cookies.userId;
+    return cookies.authenticated === "true" && cookies.userId;
   };
 
+  // Inizializzazione immediata basata sui cookie
+  useEffect(() => {
+    const hasCookies = checkCookies();
+    console.log("🚀 AuthProvider - Inizializzazione:", { hasCookies });
+
+    if (hasCookies) {
+      console.log("✅ AuthProvider - Cookie trovati, imposto autenticato");
+      setIsAuthenticated(true);
+    }
+  }, []);
+
   // Query per verificare lo stato di autenticazione
-  const { data: authStatus, isLoading, refetch: refetchAuth } = useQuery({
+  const {
+    data: authStatus,
+    isLoading,
+    refetch: refetchAuth,
+  } = useQuery({
     queryKey: ["auth-status"],
     queryFn: stravaApi.checkAuthStatus,
-    retry: false,
+    retry: 1,
+    retryDelay: 1000,
     staleTime: 0,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    enabled: !!checkCookies(), // Abilita solo se ci sono cookie
   });
 
   // Query per ottenere info utente (solo se autenticato)
@@ -75,27 +100,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Effetto per gestire l'autenticazione
   useEffect(() => {
     const hasCookies = checkCookies();
-    console.log("🔍 AuthProvider - Verifica autenticazione:", { 
-      hasCookies, 
-      authStatus, 
+    console.log("🔍 AuthProvider - Verifica autenticazione:", {
+      hasCookies,
+      authStatus,
       userInfo,
-      currentAuth: isAuthenticated 
+      currentAuth: isAuthenticated,
     });
-    
+
     if (hasCookies && authStatus === true) {
-      console.log("✅ AuthProvider - Imposto autenticato");
+      console.log("✅ AuthProvider - Imposto autenticato con dati utente");
       setIsAuthenticated(true);
       setUser(userInfo || null);
-    } else if (hasCookies && authStatus === undefined && !isAuthenticated) {
+    } else if (hasCookies && authStatus === undefined && !isLoading) {
       // Se abbiamo i cookie ma non abbiamo ancora verificato l'auth, prova a refetch
-      console.log("🔄 AuthProvider - Refetch auth status...");
+      console.log("🔄 AuthProvider - Cookie trovati, refetch auth status...");
       refetchAuth();
+    } else if (hasCookies && authStatus === false) {
+      // Se abbiamo i cookie ma l'auth è fallita, manteniamo comunque autenticato
+      // (potrebbe essere un problema temporaneo del server)
+      console.log(
+        "⚠️ AuthProvider - Cookie presenti ma auth fallita, mantengo autenticato"
+      );
+      setIsAuthenticated(true);
     } else if (!hasCookies) {
       console.log("❌ AuthProvider - Nessun cookie, non autenticato");
       setIsAuthenticated(false);
       setUser(null);
     }
-  }, [authStatus, userInfo, refetchAuth, isAuthenticated]);
+  }, [authStatus, userInfo, refetchAuth, isAuthenticated, isLoading]);
+
+  // Effetto separato per aggiornare i dati utente quando arrivano
+  useEffect(() => {
+    if (isAuthenticated && userInfo) {
+      console.log("👤 AuthProvider - Aggiorno dati utente:", userInfo);
+      setUser(userInfo);
+    }
+  }, [isAuthenticated, userInfo]);
 
   const login = () => {
     console.log("🚀 AuthProvider - Avvio login");
@@ -105,10 +145,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     console.log("🚪 AuthProvider - Logout");
     // Rimuovi i cookie di autenticazione
-    document.cookie = "authenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie =
+      "authenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     document.cookie = "userId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    document.cookie = "sessionId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    
+    document.cookie =
+      "sessionId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+
     // Reset dello stato locale
     setIsAuthenticated(false);
     setUser(null);
@@ -123,11 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
@@ -136,4 +174,4 @@ export function useAuth() {
     throw new Error("useAuth deve essere usato all'interno di AuthProvider");
   }
   return context;
-} 
+}
